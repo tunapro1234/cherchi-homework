@@ -83,7 +83,6 @@ enum options parse_inputs(int argc, char** argv, int* input_index, int* output_i
 		fprintf(stderr, "No output file provided.\n(You can provide it with '-o <output.txt>)\n");
 		exit(1);
 	}
-	printf("%d, %d\n", *input_index, *output_index);
 	return rv;
 }
 
@@ -115,7 +114,7 @@ void print_node(FILE* out, node_node_t* self) {
 		first_row = True;
 		while (row_head != NULL) {
 			if (!first_row) {
-				fprintf(out, ", ");
+				fprintf(out, ",");
 			} first_row = False;
 			fprintf(out, "%d", row_head->value);
 			row_head = row_head->next;
@@ -150,13 +149,18 @@ node_node_t* new_node_node(node_node_t* self) {
 }
 
 
-node_node_t* read_csv(char* filename) {
+node_node_t* read_csv(char* filename, size_t* len_data) {
     char *tok, line[1024];
 	FILE* fp;
+
+	*len_data = 0;
+	bool first_col = True;
+	bool first_row = True;
 	
 	node_node_t *column_head = NULL;
 	node_node_t *rv = column_head;
 	int_node_t  *row_head;
+
 
 	/* try to read the file */ 
     fp = fopen(filename, "r");
@@ -164,9 +168,6 @@ node_node_t* read_csv(char* filename) {
         fprintf(stderr, "Error: could not open file '%s'\n", filename);
         exit(1);
     }
-
-	bool first_col = True;
-	bool first_row = True;
 
 	/* dosya okuma işlemi */
     while (fgets(line, 1024, fp) != NULL) {
@@ -186,6 +187,7 @@ node_node_t* read_csv(char* filename) {
 			if (!first_row) {
 				row_head = new_int_node(row_head);
 			} first_row = False;
+			*len_data = *len_data + 1;
 			row_head->value = atoi(tok);
             tok = strtok(NULL, ",");
         }
@@ -195,11 +197,50 @@ node_node_t* read_csv(char* filename) {
 	return rv;
 }
 
+
+int* find_duplicates(node_node_t* data, size_t len_data, size_t* len_output) {
+	int *output_buffer = (int *)malloc(len_data * sizeof(int));
+	*len_output = 0;
+
+	node_node_t *column_head = data;
+	int_node_t *row_head;
+
+	while (column_head != NULL) {
+		row_head = column_head->row_start;
+		while (row_head != NULL) {
+			int number = row_head->value;
+
+			/* check if the number is found before */
+			bool found_before = False;
+			for (int i = 0; i < *len_output; i++)
+				if (output_buffer[i] == number)	
+					found_before = True;
+
+			/* if not found, count how many in the linked list */
+			if (!found_before) {
+				size_t number_count = count_number(data, number);
+				if (number_count > 1) {
+					output_buffer[*len_output] = number;
+					*len_output = *len_output+1;
+				}
+			}
+
+			/* continue to iterate */
+			row_head = row_head->next;
+		} 
+		column_head = column_head->next;
+	}
+	return output_buffer;
+}
+
+
 int main(int argc, char** argv) {
 	/* parse inputs and input data*/
+	size_t len_data;
 	int input_index, output_index;
 	enum options rv = parse_inputs(argc, argv, &input_index, &output_index);
-	node_node_t *data = read_csv(argv[input_index]);
+	node_node_t *data = read_csv(argv[input_index], &len_data);
+	/* printf("length of data: %lu\n", len_data); */
 	/* done */
 
 	/* write to output file */
@@ -215,9 +256,18 @@ int main(int argc, char** argv) {
 	if (rv == OPT_PRINT)
 		print_node(stdout, data);
 	if (rv == OPT_COUNT_ZEROS)
-		printf("number of zeros: %lu\n", count_number(data, 0));
-	if (rv == OPT_DUPLICATES)
-		;
+		printf("%lu\n", count_number(data, 0));
+	if (rv == OPT_DUPLICATES) {
+		size_t len_duplicates;
+		int *duplicates = find_duplicates(data, len_data, &len_duplicates);
+		for (size_t i = 0; i < len_duplicates; i++) {
+			printf("%d", duplicates[i]);
+			if (i != len_duplicates-1)
+				printf(",");
+		}
+		printf("\n");
+		free(duplicates);
+	}
 
 	return 0;
 }
