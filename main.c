@@ -2,9 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FILENAME "input.csv"
-
 typedef enum { False, True } bool;
+
 
 enum options {
 	OPT_NONE,
@@ -13,6 +12,7 @@ enum options {
 	OPT_DUPLICATES,
 	OPT_COUNT,
 };
+
 
 typedef struct int_node_t {
 	struct int_node_t *next;
@@ -29,11 +29,59 @@ typedef struct node_node_t {
 } node_node_t;
 
 
-/*
- * TODO
- * free nodes
- *
- */
+enum options parse_inputs(int argc, char** argv, int* input_index, int* output_index);
+
+int_node_t* new_int_node(int_node_t* self);
+node_node_t* new_node_node(node_node_t* self);
+node_node_t* read_csv(char* filename, size_t* len_data);
+
+void print_node(FILE* out, node_node_t* self);
+size_t count_number(node_node_t* self, int number_to_count);
+int* find_duplicates(node_node_t* data, size_t len_data, size_t* len_output);
+
+
+
+int main(int argc, char** argv) {
+	/* parse inputs and input data*/
+	size_t len_data;
+	int input_index, output_index;
+	enum options rv = parse_inputs(argc, argv, &input_index, &output_index);
+	node_node_t *data = read_csv(argv[input_index], &len_data);
+	/* printf("length of data: %lu\n", len_data); */
+	/* done */
+
+	/* write to output file */
+    FILE *output_file = fopen(argv[output_index], "w");
+    if (output_file == NULL) {
+        fprintf(stderr, "Error opening output file!\n");
+        return 1;
+    }
+	print_node(output_file, data);
+    fclose(output_file);
+	/* done */
+	
+	/* call functions according to input parameters */
+	if (rv == OPT_PRINT)
+		print_node(stdout, data);
+	if (rv == OPT_COUNT_ZEROS)
+		printf("%lu\n", count_number(data, 0));
+	if (rv == OPT_DUPLICATES) {
+		size_t len_duplicates;
+		int *duplicates = find_duplicates(data, len_data, &len_duplicates);
+		for (size_t i = 0; i < len_duplicates; i++) {
+			printf("%d", duplicates[i]);
+			if (i != len_duplicates-1)
+				printf(",");
+		}
+		printf("\n");
+		free(duplicates);
+	}
+	/* done */
+
+	return 0;
+}
+
+
 
 enum options parse_inputs(int argc, char** argv, int* input_index, int* output_index) {
 	enum options rv = OPT_NONE;
@@ -76,53 +124,16 @@ enum options parse_inputs(int argc, char** argv, int* input_index, int* output_i
         }
     }
 	if (*input_index == -1) {
-		fprintf(stderr, "No input file provided.\n(You can provide it with '-i <input.csv>)\n");
+		fprintf(stderr, "No input file provided.\n(You can provide it with '-i <input.csv>')\n");
 		exit(1);
 	}
 	if (*output_index == -1) {
-		fprintf(stderr, "No output file provided.\n(You can provide it with '-o <output.txt>)\n");
+		fprintf(stderr, "No output file provided.\n(You can provide it with '-o <output.txt>')\n");
 		exit(1);
 	}
 	return rv;
 }
 
-
-size_t count_number(node_node_t* self, int number_to_count) {
-	node_node_t *column_head = self;
-	int_node_t *row_head;
-	bool first_row;
-
-	size_t counter = 0;
-	while (column_head != NULL) {
-		row_head = column_head->row_start;
-		while (row_head != NULL) {
-			if (row_head->value == number_to_count)
-				counter++;
-			row_head = row_head->next;
-		} column_head = column_head->next;
-	} return counter;
-}
-
-
-void print_node(FILE* out, node_node_t* self) {
-	node_node_t *column_head = self;
-	int_node_t *row_head;
-	bool first_row;
-
-	while (column_head != NULL) {
-		row_head = column_head->row_start;
-		first_row = True;
-		while (row_head != NULL) {
-			if (!first_row) {
-				fprintf(out, ",");
-			} first_row = False;
-			fprintf(out, "%d", row_head->value);
-			row_head = row_head->next;
-		}
-		fprintf(out, "\n");
-		column_head = column_head->next;
-	}
-}
 
 
 int_node_t* new_int_node(int_node_t* self) {
@@ -198,6 +209,45 @@ node_node_t* read_csv(char* filename, size_t* len_data) {
 }
 
 
+
+void print_node(FILE* out, node_node_t* self) {
+	node_node_t *column_head = self;
+	int_node_t *row_head;
+	bool first_row;
+
+	while (column_head != NULL) {
+		row_head = column_head->row_start;
+		first_row = True;
+		while (row_head != NULL) {
+			if (!first_row) {
+				fprintf(out, ",");
+			} first_row = False;
+			fprintf(out, "%d", row_head->value);
+			row_head = row_head->next;
+		}
+		fprintf(out, "\n");
+		column_head = column_head->next;
+	}
+}
+
+
+size_t count_number(node_node_t* self, int number_to_count) {
+	node_node_t *column_head = self;
+	int_node_t *row_head;
+	bool first_row;
+
+	size_t counter = 0;
+	while (column_head != NULL) {
+		row_head = column_head->row_start;
+		while (row_head != NULL) {
+			if (row_head->value == number_to_count)
+				counter++;
+			row_head = row_head->next;
+		} column_head = column_head->next;
+	} return counter;
+}
+
+
 int* find_duplicates(node_node_t* data, size_t len_data, size_t* len_output) {
 	int *output_buffer = (int *)malloc(len_data * sizeof(int));
 	*len_output = 0;
@@ -224,52 +274,12 @@ int* find_duplicates(node_node_t* data, size_t len_data, size_t* len_output) {
 					*len_output = *len_output+1;
 				}
 			}
-
 			/* continue to iterate */
 			row_head = row_head->next;
 		} 
 		column_head = column_head->next;
 	}
 	return output_buffer;
-}
-
-
-int main(int argc, char** argv) {
-	/* parse inputs and input data*/
-	size_t len_data;
-	int input_index, output_index;
-	enum options rv = parse_inputs(argc, argv, &input_index, &output_index);
-	node_node_t *data = read_csv(argv[input_index], &len_data);
-	/* printf("length of data: %lu\n", len_data); */
-	/* done */
-
-	/* write to output file */
-    FILE *output_file = fopen(argv[output_index], "w");
-    if (output_file == NULL) {
-        fprintf(stderr, "Error opening output file!\n");
-        return 1;
-    }
-	print_node(output_file, data);
-    fclose(output_file);
-	/* done */
-	
-	if (rv == OPT_PRINT)
-		print_node(stdout, data);
-	if (rv == OPT_COUNT_ZEROS)
-		printf("%lu\n", count_number(data, 0));
-	if (rv == OPT_DUPLICATES) {
-		size_t len_duplicates;
-		int *duplicates = find_duplicates(data, len_data, &len_duplicates);
-		for (size_t i = 0; i < len_duplicates; i++) {
-			printf("%d", duplicates[i]);
-			if (i != len_duplicates-1)
-				printf(",");
-		}
-		printf("\n");
-		free(duplicates);
-	}
-
-	return 0;
 }
 
 
